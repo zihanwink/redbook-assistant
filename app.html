@@ -978,7 +978,7 @@
     // 本地开发保持默认即可
     const API_BASE = (window.location.protocol === 'file:')
       ? 'http://localhost:3000/api'
-      : (window.__API_BASE__ || '/api');
+      : 'https://web-production-fb020.up.railway.app/api';
     let authToken = localStorage.getItem('rb_token') || sessionStorage.getItem('rb_token') || '';
     let currentUser = null;
     try { const _u = localStorage.getItem('rb_user'); if (_u) currentUser = JSON.parse(_u); } catch {} 
