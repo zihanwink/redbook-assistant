@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理后台 - 小红书选题助手</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { --primary: #FF2442; --bg: #F8F9FA; --card-bg: #fff; --text: #1a1a1a; --text-secondary: #666; --text-muted: #999; --border: #eee; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; max-width: 1200px; margin: 0 auto; min-height: 100vh; }
+    .header { background: #fff; padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .header-title { font-size: 20px; font-weight: 700; }
+    .header-sub { font-size: 13px; color: var(--text-muted); }
+    .container { padding: 20px; }
+    @media (min-width: 700px) { .container { padding: 32px; } }
+    .login-box { max-width: 400px; margin: 60px auto; background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+    .login-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; text-align: center; }
+    .field { margin-bottom: 16px; }
+    .field-label { font-size: 14px; font-weight: 600; margin-bottom: 6px; display: block; }
+    .field-input { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; outline: none; }
+    .field-input:focus { border-color: var(--primary); }
+    .btn { width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-danger { background: #D32F2F; color: #fff; padding: 6px 12px; font-size: 13px; border-radius: 8px; border: none; cursor: pointer; }
+    .error { color: #D32F2F; font-size: 13px; margin-top: 8px; }
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; }
+    @media (min-width: 700px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+    .stat-card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .stat-value { font-size: 28px; font-weight: 700; color: var(--primary); }
+    .stat-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .user-table { width: 100%; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .user-table th, .user-table td { padding: 14px 16px; text-align: left; font-size: 14px; border-bottom: 1px solid var(--border); }
+    .user-table th { background: #FAFAFA; font-weight: 600; color: var(--text-secondary); }
+    .user-table tr:last-child td { border-bottom: none; }
+    .empty { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    const API_BASE = '/api';
+    let adminKey = localStorage.getItem('rb_admin_key') || '';
+    let users = [];
+    let stats = {};
+
+    async function apiGet(path) {
+      const res = await fetch(API_BASE + path, { headers: { 'x-admin-key': adminKey } });
+      if (!res.ok) throw new Error((await res.json()).error || '请求失败');
+      return res.json();
+    }
+
+    async function apiDelete(path) {
+      const res = await fetch(API_BASE + path, { method: 'DELETE', headers: { 'x-admin-key': adminKey } });
+      if (!res.ok) throw new Error((await res.json()).error || '请求失败');
+      return res.json();
+    }
+
+    async function loadData() {
+      try {
+        [users, stats] = await Promise.all([apiGet('/admin/users'), apiGet('/admin/stats')]);
+        render();
+      } catch (e) {
+        alert('加载失败: ' + e.message);
+        adminKey = '';
+        localStorage.removeItem('rb_admin_key');
+        render();
+      }
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('确定删除该用户？此操作会同时删除该用户的所有数据。')) return;
+      try {
+        await apiDelete('/admin/users/' + id);
+        await loadData();
+      } catch (e) {
+        alert('删除失败: ' + e.message);
+      }
+    }
+
+    function handleLogin() {
+      const key = document.getElementById('adminKey').value.trim();
+      const errEl = document.getElementById('loginError');
+      if (!key) { errEl.textContent = '请输入管理密钥'; return; }
+      adminKey = key;
+      localStorage.setItem('rb_admin_key', adminKey);
+      loadData();
+    }
+
+    function logout() {
+      adminKey = '';
+      localStorage.removeItem('rb_admin_key');
+      render();
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      if (!adminKey) {
+        app.innerHTML = `
+          <div class="login-box">
+            <div class="login-title">🔐 管理后台登录</div>
+            <div class="field">
+              <label class="field-label">管理密钥</label>
+              <input class="field-input" id="adminKey" type="password" placeholder="输入管理密钥">
+            </div>
+            <button class="btn btn-primary" onclick="handleLogin()">进入后台</button>
+            <div class="error" id="loginError"></div>
+          </div>`;
+        return;
+      }
+
+      let html = `<div class="header">
+        <div><div class="header-title">管理后台</div><div class="header-sub">小红书选题助手</div></div>
+        <button class="btn btn-primary" style="width:auto;padding:8px 16px;font-size:13px;" onclick="logout()">退出</button>
+      </div>`;
+
+      html += '<div class="container">';
+
+      html += '<div class="stats">';
+      html += `<div class="stat-card"><div class="stat-value">${stats.users || 0}</div><div class="stat-label">注册用户</div></div>`;
+      html += `<div class="stat-card"><div class="stat-value">${stats.topics || 0}</div><div class="stat-label">选题总数</div></div>`;
+      html += `<div class="stat-card"><div class="stat-value">${stats.favorites || 0}</div><div class="stat-label">收藏总数</div></div>`;
+      html += `<div class="stat-card"><div class="stat-value">${stats.plans || 0}</div><div class="stat-label">创作计划</div></div>`;
+      html += '</div>';
+
+      html += '<div class="section-title">用户列表</div>';
+      if (users.length === 0) {
+        html += '<div class="empty">暂无用户</div>';
+      } else {
+        html += '<table class="user-table"><thead><tr><th>ID</th><th>用户名</th><th>注册时间</th><th>操作</th></tr></thead><tbody>';
+        users.forEach(u => {
+          html += `<tr><td>${u.id}</td><td>${u.username}</td><td>${u.created_at ? new Date(u.created_at).toLocaleString() : '-'}</td><td><button class="btn-danger" onclick="deleteUser(${u.id})">删除</button></td></tr>`;
+        });
+        html += '</tbody></table>';
+      }
+
+      html += '</div>';
+      app.innerHTML = html;
+    }
+
+    if (adminKey) loadData();
+    else render();
+  </script>
+</body>
+</html>
