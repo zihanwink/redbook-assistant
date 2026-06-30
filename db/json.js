@@ -62,7 +62,8 @@ const jsonDb = {
     return this.topics.filter(t => t.user_id === userId);
   },
   async findTopicById(id) {
-    return this.topics.find(t => t.id === id);
+    const sid = String(id);
+    return this.topics.find(t => String(t.id) === sid);
   },
   async createTopic(topic) {
     topic.id = this._nextId('topics');
@@ -72,16 +73,18 @@ const jsonDb = {
     return topic;
   },
   async updateTopic(id, updates) {
-    const idx = this.topics.findIndex(t => t.id === id);
+    const sid = String(id);
+    const idx = this.topics.findIndex(t => String(t.id) === sid);
     if (idx === -1) return null;
     this.topics[idx] = { ...this.topics[idx], ...updates };
     this._save('topics');
     return this.topics[idx];
   },
   async deleteTopic(id) {
-    this.topics = this.topics.filter(t => t.id !== id);
-    this.favorites = this.favorites.filter(f => f.topic_id !== id);
-    this.plans = this.plans.filter(p => p.topic_id !== id);
+    const sid = String(id);
+    this.topics = this.topics.filter(t => String(t.id) !== sid);
+    this.favorites = this.favorites.filter(f => String(f.topic_id) !== sid);
+    this.plans = this.plans.filter(p => String(p.topic_id) !== sid);
     this._save('topics');
     this._save('favorites');
     this._save('plans');
@@ -91,13 +94,14 @@ const jsonDb = {
     return this.favorites.filter(f => f.user_id === userId);
   },
   async toggleFavorite(userId, topicId) {
-    const idx = this.favorites.findIndex(f => f.user_id === userId && f.topic_id === topicId);
+    const sid = String(topicId);
+    const idx = this.favorites.findIndex(f => f.user_id === userId && String(f.topic_id) === sid);
     if (idx > -1) {
       this.favorites.splice(idx, 1);
       this._save('favorites');
       return false;
     }
-    this.favorites.push({ id: this._nextId('favorites'), user_id: userId, topic_id: topicId, created_at: new Date().toISOString() });
+    this.favorites.push({ id: this._nextId('favorites'), user_id: userId, topic_id: sid, created_at: new Date().toISOString() });
     this._save('favorites');
     return true;
   },
@@ -106,13 +110,14 @@ const jsonDb = {
     return this.plans.filter(p => p.user_id === userId);
   },
   async togglePlan(userId, topicId) {
-    const idx = this.plans.findIndex(p => p.user_id === userId && p.topic_id === topicId);
+    const sid = String(topicId);
+    const idx = this.plans.findIndex(p => p.user_id === userId && String(p.topic_id) === sid);
     if (idx > -1) {
       this.plans.splice(idx, 1);
       this._save('plans');
       return false;
     }
-    this.plans.push({ id: this._nextId('plans'), user_id: userId, topic_id: topicId, status: 'pending', created_at: new Date().toISOString() });
+    this.plans.push({ id: this._nextId('plans'), user_id: userId, topic_id: sid, status: 'pending', created_at: new Date().toISOString() });
     this._save('plans');
     return true;
   },

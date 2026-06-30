@@ -73,6 +73,7 @@ git push -u origin main
      ADMIN_SECRET = redbook-admin-key
      MONGODB_URI = mongodb+srv://redbook_admin:你的密码@redbook-cluster.xxxxx.mongodb.net/redbook_assistant?retryWrites=true&w=majority
      FRONTEND_URL = *
+     API_PUBLIC_URL = https://你的后端域名（封面代理用，前后端分离时必填）
      ```
 7. Railway 会自动重新部署
 8. 获取后端 URL：
@@ -141,7 +142,8 @@ const API_BASE = 'https://redbook-assistant.up.railway.app/api';
 | `ADMIN_SECRET` | 管理后台密钥 | `redbook-admin-key` |
 | `MONGODB_URI` | MongoDB 连接字符串 | `mongodb+srv://...` |
 | `FRONTEND_URL` | 前端地址（CORS） | `*` 或 `https://xxx.vercel.app` |
-| `DEEPSEEK_API_KEY` | DeepSeek API Key（可选） | `sk-...` |
+| `API_PUBLIC_URL` | 后端公网地址（封面图片代理） | `https://xxx.vercel.app` 或 Railway 域名 |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key（可选，用户也可在前端配置） | `sk-...` |
 
 ---
 
@@ -152,9 +154,15 @@ const API_BASE = 'https://redbook-assistant.up.railway.app/api';
 - 对于当前应用足够使用（数千用户 + 数万选题）
 - 如果不够用，可以升级到 M10 计划（约 $57/月）
 
+### 爆款分析双模型
+- **DeepSeek**（用户在前端配置 Key）：负责结构化文本分析
+- **智谱视觉模型**（用户在前端配置 Key）：默认 `glm-4.6v`，可选 `glm-5v-turbo`（视频更强）
+- 旧版 `glm-4v` 已弃用，请勿使用
+
 ### 视频分析（ffmpeg）
 - Railway 通过 `nixpacks.toml` 自动安装 ffmpeg
 - 视频下载、关键帧提取、音频转写都可以正常工作
+- Vercel 免费版跳过 ffmpeg（超时限制），公网视频仅用封面图做视觉分析
 - 如果视频处理失败，会降级为文本分析
 
 ### 域名和 HTTPS

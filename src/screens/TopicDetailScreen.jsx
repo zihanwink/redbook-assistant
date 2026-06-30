@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Eye, Heart, Share2, CheckCircle, Bulb, Camera, FileText, Clock } from 'lucide-react';
+import { Eye, Heart, Share2, CheckCircle } from 'lucide-react';
 import { categories } from '../data/mockData';
 import { toggleFavorite } from '../utils/storage';
+import { buildCreationAdvice } from '../../utils/xhsCreationAdvice.js';
 
 export default function TopicDetailScreen() {
   const location = useLocation();
@@ -38,6 +39,7 @@ export default function TopicDetailScreen() {
 
   const trend = trendConfig[topic.trend] || trendConfig.up;
   const categoryName = categories.find((c) => c.id === topic.category)?.name || '综合';
+  const creationTips = buildCreationAdvice(topic);
 
   const handleFavorite = () => {
     toggleFavorite(topic.id);
@@ -107,22 +109,15 @@ export default function TopicDetailScreen() {
         <div className="detail-section">
           <div className="detail-section-title">创作建议</div>
           <div className="tip-card">
-            <div className="tip-item">
-              <Bulb size={16} />
-              <span className="tip-text">建议结合个人真实体验，增加内容的可信度和亲和力</span>
-            </div>
-            <div className="tip-item">
-              <Camera size={16} />
-              <span className="tip-text">封面图建议使用高清实拍图，第一张图决定点击率</span>
-            </div>
-            <div className="tip-item">
-              <FileText size={16} />
-              <span className="tip-text">标题可加入数字或疑问句，更容易吸引用户点击</span>
-            </div>
-            <div className="tip-item">
-              <Clock size={16} />
-              <span className="tip-text">发布最佳时间：工作日 12:00-14:00 或 18:00-22:00</span>
-            </div>
+            {creationTips.map((tip, i) => (
+              <div key={i} className="tip-item">
+                <span className="tip-dot" />
+                <div className="tip-item-body">
+                  <div className="tip-label">{tip.label}</div>
+                  <span className="tip-text">{tip.text}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

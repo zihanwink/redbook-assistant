@@ -327,6 +327,22 @@
       color: var(--text-muted);
     }
     .view-detail { text-align: right; font-size: 13px; color: var(--primary); font-weight: 500; }
+    .result-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .result-action-btn {
+      flex: 1;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      min-height: 38px;
+      border: 1px solid var(--glass-border-strong);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text-secondary);
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .result-action-btn.active { color: var(--primary); border-color: rgba(255,36,66,0.28); background: var(--primary-light); }
+    .result-action-btn.plan-active { color: #2E7D32; border-color: rgba(46,125,50,0.25); background: rgba(46,125,50,0.08); }
+    .result-action-btn:hover { border-color: var(--primary); color: var(--primary); }
     .regenerate-btn {
       display: flex;
       align-items: center;
@@ -399,16 +415,18 @@
       border-radius: 12px;
       padding: 16px;
     }
-    .tip-item { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+    .tip-item { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 14px; }
     .tip-item:last-child { margin-bottom: 0; }
     .tip-dot {
       width: 6px; height: 6px;
       border-radius: 50%;
       background: #FFB800;
       flex-shrink: 0;
-      margin-top: 6px;
+      margin-top: 8px;
     }
-    .tip-text { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+    .tip-item-body { flex: 1; min-width: 0; }
+    .tip-label { font-size: 12px; font-weight: 600; color: #B8860B; margin-bottom: 3px; }
+    .tip-text { font-size: 13px; color: var(--text-secondary); line-height: 1.55; display: block; }
 
     .detail-bottom-bar {
       position: fixed;
@@ -469,6 +487,11 @@
       box-shadow: 0 8px 32px rgba(0,0,0,0.1);
     }
     .toast.show { opacity: 1; }
+    .toast-error {
+      background: rgba(255, 235, 238, 0.95);
+      color: #C62828;
+      border-color: #FFCDD2;
+    }
 
     /* ===== 底部导航 ===== */
     .tab-bar {
@@ -855,6 +878,7 @@
     .analyze-result { padding: 0 16px 24px; }
     .analyze-overview { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 16px; border: 1px solid rgba(0,0,0,0.06); box-shadow: 0 4px 16px rgba(0,0,0,0.04); padding: 20px; display: flex; gap: 16px; margin-bottom: 16px; }
     .analyze-cover { width: 120px; height: 160px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: rgba(0,0,0,0.04); }
+    .analyze-cover.no-image { background: linear-gradient(135deg, rgba(255,36,66,0.08), rgba(0,0,0,0.04)); }
     .analyze-cover img { width: 100%; height: 100%; object-fit: cover; }
     .analyze-overview-info { flex: 1; min-width: 0; }
     .analyze-overview-title { font-size: 17px; font-weight: 700; color: var(--text); line-height: 1.4; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -971,6 +995,8 @@
     </div>
   </div>
   <div id="root"></div>
+  <noscript><p style="padding:24px;text-align:center">请启用 JavaScript</p></noscript>
+  <script type="module" src="/js/xhs-bridge.mjs"></script>
 
   <script>
     // ============== API ==============
@@ -978,12 +1004,66 @@
     // 本地开发保持默认即可
     const API_BASE = (window.location.protocol === 'file:')
       ? 'http://localhost:3000/api'
-      : 'https://web-production-fb020.up.railway.app/api';
+      : (window.__API_BASE__ || '/api');
     let authToken = localStorage.getItem('rb_token') || sessionStorage.getItem('rb_token') || '';
     let currentUser = null;
     try { const _u = localStorage.getItem('rb_user'); if (_u) currentUser = JSON.parse(_u); } catch {} 
     if (!currentUser) { try { const _u = sessionStorage.getItem('rb_user'); if (_u) currentUser = JSON.parse(_u); } catch {} }
     let loginMode = 'login'; // 'login' | 'register' | 'forgot'
+
+    // API Key 管理（保存在浏览器 localStorage，分析时随请求发送、不存入服务器）
+    const API_KEY_STORAGE = 'rb_api_key';
+    const ZHIPU_API_KEY_STORAGE = 'rb_zhipu_api_key';
+    const ZHIPU_VISION_MODEL_STORAGE = 'rb_zhipu_vision_model';
+    const API_MODE_STORAGE = 'rb_api_mode';
+    const ZHIPU_VISION_MODEL_OPTIONS = [
+      { id: 'glm-4.6v', label: 'GLM-4.6V（推荐）' },
+      { id: 'glm-5v-turbo', label: 'GLM-5V-Turbo（视频更强）' },
+      { id: 'glm-4.6v-flash', label: 'GLM-4.6V-Flash（免费）' },
+      { id: 'glm-4v-flash', label: 'GLM-4V-Flash（免费轻量）' },
+    ];
+    const getApiKey = () => { try { return localStorage.getItem(API_KEY_STORAGE) || ''; } catch { return ''; } };
+    const setApiKey = (k) => { try { localStorage.setItem(API_KEY_STORAGE, k); } catch {} };
+    const getZhipuApiKey = () => { try { return localStorage.getItem(ZHIPU_API_KEY_STORAGE) || ''; } catch { return ''; } };
+    const setZhipuApiKey = (k) => { try { localStorage.setItem(ZHIPU_API_KEY_STORAGE, k); } catch {} };
+    const getZhipuVisionModel = () => { try { return localStorage.getItem(ZHIPU_VISION_MODEL_STORAGE) || 'glm-4.6v'; } catch { return 'glm-4.6v'; } };
+    const setZhipuVisionModel = (m) => { try { localStorage.setItem(ZHIPU_VISION_MODEL_STORAGE, m); } catch {} };
+    const getApiMode = () => { try { return localStorage.getItem(API_MODE_STORAGE) === 'true'; } catch { return false; } };
+    const setApiMode = (v) => { try { localStorage.setItem(API_MODE_STORAGE, v.toString()); } catch {} };
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function escSingleQuote(str) {
+      return String(str || '').replace(/'/g, "\\'");
+    }
+    function updateEditorTitleCount(input) {
+      var c = input.parentElement.querySelector('.count');
+      if (!c) return;
+      c.textContent = input.value.length + '/20';
+      c.className = 'count' + (input.value.length > 20 ? ' warn' : '');
+    }
+
+    function getXhsTopicMod() {
+      if (window.__xhsTopicMod) return Promise.resolve(window.__xhsTopicMod);
+      return new Promise((resolve) => {
+        if (window.__xhsTopicMod) return resolve(window.__xhsTopicMod);
+        const onReady = () => resolve(window.__xhsTopicMod || null);
+        window.addEventListener('xhs-ready', onReady, { once: true });
+        setTimeout(onReady, 5000);
+      });
+    }
+    const xhsTopicPromise = getXhsTopicMod();
+
+    function getCreationAdvice(topic) {
+      if (window.__buildCreationAdvice) return window.__buildCreationAdvice(topic);
+      return [
+        { label: '内容角度', text: '场景钩子开头 + 具体痛点 + 可执行方法，避免空泛科普' },
+        { label: '笔记结构', text: '场景钩子 → 痛点共鸣 → 误区 → 方法/清单 → 温和提醒 → 评论互动' },
+        { label: '封面方案', text: '封面大字提炼核心痛点 + 高清实拍场景图' },
+        { label: '评论引导', text: '「你现在卡在哪一步？可以说说你的情况」' },
+      ];
+    }
 
     const _svgs = {
       home:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
@@ -1040,7 +1120,12 @@
       if (text.trim().startsWith('<')) {
         throw new Error('后端服务未响应，请先在终端运行 node server.js 启动服务');
       }
-      try { return JSON.parse(text); } catch { throw new Error(text.slice(0, 200) || '请求失败'); }
+      let data;
+      try { data = JSON.parse(text); } catch { throw new Error(text.slice(0, 200) || '请求失败'); }
+      if (!res.ok) {
+        throw new Error(data.error || data.message || ('请求失败 (' + res.status + ')'));
+      }
+      return data;
     }
     async function apiGet(path) {
       const res = await fetch(API_BASE + path, { headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {} });
@@ -1142,65 +1227,107 @@
     const getFavSet = () => new Set(getFavs());
     async function ensureTopicSaved(id) {
       if (String(id).startsWith('_ai')) {
-        const aiTopic = aiResults.find(t => String(t.id) === String(id));
-        if (!aiTopic) return null;
-        try {
-          const saved = await apiPost('/topics', {
-            title: aiTopic.title,
-            description: aiTopic.description,
-            category: aiTopic.category || 'other',
-            keywords: aiTopic.keywords || [],
-            tags: aiTopic.tags || aiTopic.keywords || [],
-            body: aiTopic.body || '',
-            heat: aiTopic.heat || 0,
-            trend: aiTopic.trend || 'up',
-            score: aiTopic.score || 80
-          });
-          topics.push(saved);
-          return saved.id;
-        } catch { return null; }
+        const aiTopic = aiResults.find(t => String(t.id) === String(id) || String(t.tempId) === String(id));
+        if (!aiTopic) throw new Error('AI 选题未找到，请重新生成后再操作');
+        if (aiTopic.savedId) return aiTopic.savedId;
+        const saved = await apiPost('/topics', {
+          title: aiTopic.title,
+          description: aiTopic.description,
+          category: aiTopic.category || 'other',
+          keywords: aiTopic.keywords || [],
+          tags: aiTopic.tags || aiTopic.keywords || [],
+          body: aiTopic.body || '',
+          heat: aiTopic.heat || 0,
+          trend: aiTopic.trend || 'up',
+          score: aiTopic.score || 80
+        });
+        if (saved && saved.id) {
+          const tempId = String(aiTopic.id);
+          aiTopic.tempId = aiTopic.tempId || tempId;
+          aiTopic.savedId = String(saved.id);
+          Object.assign(aiTopic, saved);
+          aiTopic.id = saved.id;
+          if (!topics.find(t => String(t.id) === String(saved.id))) topics.push(aiTopic);
+          if (detailTopic && (String(detailTopic.id) === tempId || String(detailTopic.tempId) === tempId)) detailTopic = aiTopic;
+          return String(saved.id);
+        }
+        throw new Error('保存选题失败，后端未返回 ID');
       }
       return id;
     }
     async function toggleFav(id) {
-      if (!authToken) { showToast('请先登录'); return getFavs(); }
+      if (!authToken) throw new Error('请先登录');
       const realId = await ensureTopicSaved(id);
-      if (!realId) { showToast('操作失败'); return getFavs(); }
-      try {
+      if (!realId) throw new Error('保存选题失败');
+      const res = await apiPost('/favorites/' + realId, {});
+      if (res.favorited) { const topic = topics.find(t => String(t.id) === String(realId)); if (topic && !favTopics.find(f => String(f.id) === String(realId))) favTopics.push(topic); }
+      else { favTopics = favTopics.filter(x => String(x.id) !== String(realId)); }
+      render();
+      return getFavs();
+    }
+    async function setFavState(id, shouldFav) {
+      if (!authToken) throw new Error('请先登录');
+      const realId = await ensureTopicSaved(id);
+      if (!realId) throw new Error('保存选题失败');
+      await loadFavs();
+      let isFavNow = getFavSet().has(String(realId));
+      if (isFavNow !== shouldFav) {
         const res = await apiPost('/favorites/' + realId, {});
-        if (res.favorited) { const topic = topics.find(t => String(t.id) === String(realId)); if (topic && !favTopics.find(f => String(f.id) === String(realId))) favTopics.push(topic); }
-        else { favTopics = favTopics.filter(x => String(x.id) !== String(realId)); }
-        render();
-      } catch (e) { showToast(e.message || '操作失败'); }
+        isFavNow = !!res.favorited;
+        const topic = topics.find(t => String(t.id) === String(realId)) || detailTopic;
+        if (isFavNow) {
+          if (topic && !favTopics.find(f => String(f.id) === String(realId))) favTopics.push(topic);
+        } else {
+          favTopics = favTopics.filter(x => String(x.id) !== String(realId));
+        }
+      }
+      render();
       return getFavs();
     }
     const getAdopted = () => planTopics.map(t => String(t.id));
     const isAdopted = (id) => getAdopted().includes(String(id));
     async function toggleAdopted(id) {
-      if (!authToken) { showToast('请先登录'); return getAdopted(); }
+      if (!authToken) throw new Error('请先登录');
       const realId = await ensureTopicSaved(id);
-      if (!realId) { showToast('操作失败'); return getAdopted(); }
-      try {
+      if (!realId) throw new Error('保存选题失败');
+      const res = await apiPost('/plan/' + realId, {});
+      if (res.adopted) { const topic = topics.find(t => String(t.id) === String(realId)); if (topic && !planTopics.find(p => String(p.id) === String(realId))) planTopics.push(topic); }
+      else { planTopics = planTopics.filter(x => String(x.id) !== String(realId)); }
+      render();
+      return getAdopted();
+    }
+    async function setAdoptedState(id, shouldAdopt) {
+      if (!authToken) throw new Error('请先登录');
+      const realId = await ensureTopicSaved(id);
+      if (!realId) throw new Error('保存选题失败');
+      await loadAdopted();
+      let isAdoptedNow = new Set(getAdopted()).has(String(realId));
+      if (isAdoptedNow !== shouldAdopt) {
         const res = await apiPost('/plan/' + realId, {});
-        if (res.adopted) { const topic = topics.find(t => String(t.id) === String(realId)); if (topic && !planTopics.find(p => String(p.id) === String(realId))) planTopics.push(topic); }
-        else { planTopics = planTopics.filter(x => String(x.id) !== String(realId)); }
-        render();
-      } catch (e) { showToast(e.message || '操作失败'); }
+        isAdoptedNow = !!res.adopted;
+        const topic = topics.find(t => String(t.id) === String(realId)) || detailTopic;
+        if (isAdoptedNow) {
+          if (topic && !planTopics.find(p => String(p.id) === String(realId))) planTopics.push(topic);
+        } else {
+          planTopics = planTopics.filter(x => String(x.id) !== String(realId));
+        }
+      }
+      render();
       return getAdopted();
     }
 
     let toastTimer = null;
-    function showToast(msg) {
+    function showToast(msg, type) {
       const existing = document.getElementById('toast');
       if (existing) existing.remove();
       if (toastTimer) clearTimeout(toastTimer);
       const el = document.createElement('div');
       el.id = 'toast';
-      el.className = 'toast';
-      el.textContent = msg;
+      el.className = 'toast' + (type === 'error' ? ' toast-error' : '');
+      el.textContent = String(msg || '').replace(/<svg[\s\S]*?<\/svg>/g, '').trim() || '操作成功';
       document.body.appendChild(el);
       requestAnimationFrame(() => el.classList.add('show'));
-      toastTimer = setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2000);
+      toastTimer = setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, type === 'error' ? 4000 : 2000);
     }
 
     function shareTopic(title, description) {
@@ -1347,25 +1474,41 @@
     }
 
     // ============== TopicCard ==============
-    async function handleCardFav(id) {
+    async function handleCardFav(id, shouldFav) {
       event.stopPropagation();
-      await toggleFav(id);
+      try {
+        await setFavState(id, shouldFav);
+        showToast(shouldFav ? '已收藏' : '已取消收藏');
+      } catch (e) {
+        showToast(e.message || '操作失败，请检查网络', 'error');
+      }
     }
-    function renderTopicCard(t, targetPage = 'detail') {
+    async function handleCardAdopt(id, shouldAdopt) {
+      event.stopPropagation();
+      try {
+        await setAdoptedState(id, shouldAdopt);
+        showToast(shouldAdopt ? '已采纳！该选题已加入你的创作计划' : '已取消采纳');
+      } catch (e) {
+        showToast(e.message || '操作失败，请检查网络', 'error');
+      }
+    }
+    function renderTopicCard(t, targetPage = 'detail', options = {}) {
       const favs = getFavSet();
       const isFav = favs.has(String(t.id));
+      const adopted = isAdopted(t.id);
       const trend = trendConf[t.trend] || trendConf.up;
       const cr = checkFullTopic(t);
       const ci = getComplianceInfo(cr);
       const tags = t.tags || t.keywords || [];
       const createdAt = t.createdAt || t.created_at || '';
       const heat = t.heat || 0;
+      const showAdoptAction = options.showAdoptAction || targetPage === 'editor';
       return `
         <div class="topic-card" onclick="navigate('${targetPage}', ${JSON.stringify(t).replace(/"/g, '&quot;')})">
           <div class="card-trend-row">
             <span class="trend-badge ${trend.cls}">${trend.label}</span>
             <span class="compliance-badge ${ci.level}">${ci.icon} ${ci.label}</span>
-            <button class="fav-btn${isFav ? ' liked' : ''}" onclick="handleCardFav('${t.id}')">${isFav ? ic('heartFilled') : ic('heart')}</button>
+            <button class="fav-btn${isFav ? ' liked' : ''}" onclick="handleCardFav('${t.id}', ${!isFav})">${isFav ? ic('heartFilled') : ic('heart')}</button>
           </div>
           <div class="card-title">${t.title || ''}</div>
           <div class="card-tags">${tags.slice(0, 2).map(tg => `<span class="card-tag">${tg}</span>`).join('')}</div>
@@ -1373,6 +1516,7 @@
             <span class="card-heat">${ic('eye')} ${formatHeat(heat)}</span>
             <span class="card-date">${createdAt.slice(5)}</span>
           </div>
+          ${showAdoptAction ? `<button class="regenerate-btn" style="margin-top:12px;padding:10px;font-size:13px" onclick="handleCardAdopt('${t.id}', ${!adopted})">${adopted ? '取消建议' : '采纳建议'}</button>` : ''}
         </div>`;
     }
 
@@ -1387,29 +1531,50 @@
     let analyzeError = '';
     let analyzeIsDemo = false;
 
-    function renderHome() {
+    function renderAnalyzeApiConfig() {
       const apiKey = getApiKey();
+      const zhipuKey = getZhipuApiKey();
+      const useApi = getApiMode();
+      const canEnable = !!(apiKey || zhipuKey);
+      let html = '<div class="api-config-section" style="margin:0 16px 16px">';
+      html += '<div class="api-config-title">' + ic('settings') + ' AI 模型配置</div>';
+      html += '<div class="api-config-label" style="font-size:12px;color:var(--text-muted);margin-bottom:6px">DeepSeek（结构化报告，推荐）</div>';
+      html += '<div class="api-config-row">';
+      html += `<input class="api-config-input" type="password" placeholder="输入 DeepSeek API Key（sk-...）" value="${escapeHtml(apiKey)}" onchange="setApiKey(this.value);render();" id="apiKeyInput">`;
+      html += '</div>';
+      html += '<div class="api-config-label" style="font-size:12px;color:var(--text-muted);margin:10px 0 6px">智谱视觉模型（对应官网「视觉模型」）</div>';
+      html += '<div class="api-config-row">';
+      html += '<select class="api-config-input" style="padding:10px 12px" onchange="setZhipuVisionModel(this.value);render();">';
+      ZHIPU_VISION_MODEL_OPTIONS.forEach(m => {
+        html += `<option value="${m.id}"${getZhipuVisionModel() === m.id ? ' selected' : ''}>${m.label}</option>`;
+      });
+      html += '</select></div>';
+      html += '<div class="api-config-label" style="font-size:12px;color:var(--text-muted);margin:10px 0 6px">智谱 API Key</div>';
+      html += '<div class="api-config-row">';
+      html += `<input class="api-config-input" type="password" placeholder="输入智谱 API Key" value="${escapeHtml(zhipuKey)}" onchange="setZhipuApiKey(this.value);render();" id="zhipuApiKeyInput">`;
+      html += '</div>';
+      html += '<div class="api-mode-toggle">';
+      html += `<input type="checkbox" id="apiModeToggle" ${useApi ? 'checked' : ''} ${!canEnable ? 'disabled' : ''} onchange="setApiMode(this.checked);render();">`;
+      html += `<label for="apiModeToggle">启用真实 AI 分析</label>`;
+      if (!canEnable) html += '<span class="api-status" style="color:#FF2442">（请至少配置一个 Key）</span>';
+      else if (!useApi) html += '<span class="api-status" style="color:#FF9500">（未勾选将使用演示模板，非真实分析）</span>';
+      else if (apiKey && zhipuKey) html += '<span class="api-status" style="color:#2E7D32">（双模型：DeepSeek + 智谱）</span>';
+      else if (apiKey) html += '<span class="api-status" style="color:#2E7D32">（DeepSeek 文本分析）</span>';
+      else html += '<span class="api-status" style="color:#2E7D32">（智谱 GLM-4V 分析）</span>';
+      html += '</div>';
+      html += '<div class="api-status" style="margin-top:4px;line-height:1.5">' + ic('bulb') + ' Key 保存在浏览器本地；分析时经后端转发，不会存入数据库。<br>DeepSeek：<a href="https://platform.deepseek.com" target="_blank" style="color:var(--primary)">platform.deepseek.com</a> · 智谱：<a href="https://open.bigmodel.cn" target="_blank" style="color:var(--primary)">open.bigmodel.cn</a></div>';
+      html += '</div>';
+      return html;
+    }
+
+    function renderHome() {
       const useApi = getApiMode();
 
       let html = '<div class="page-content">';
-      html += '<div class="disclaimer-bar">' + ic('bulb') + ' <span><b>数据说明：</b>AI分析基于DeepSeek大模型，结果仅供参考。请结合实际情况判断，发布前请以小红书最新社区规范为准。</span></div>';
+      html += '<div class="disclaimer-bar">' + ic('bulb') + ' <span><b>数据说明：</b>爆款分析使用 DeepSeek + 智谱 GLM-4V 双模型，结果仅供参考。发布前请以小红书最新社区规范为准。</span></div>';
       html += '<div class="page-header"><div class="page-header-title">爆款分析</div><div class="page-header-sub">粘贴小红书笔记链接，AI深度拆解爆款密码</div></div>';
 
-      // API Key 配置区域
-      html += '<div class="api-config-section" style="margin:0 16px 16px">';
-      html += '<div class="api-config-title">' + ic('settings') + ' AI 模型配置</div>';
-      html += '<div class="api-config-row">';
-      html += `<input class="api-config-input" type="password" placeholder="输入 DeepSeek API Key（sk-...）" value="${apiKey}" onchange="setApiKey(this.value);render();" id="apiKeyInput">`;
-      html += '</div>';
-      html += '<div class="api-mode-toggle">';
-      html += `<input type="checkbox" id="apiModeToggle" ${useApi ? 'checked' : ''} ${!apiKey ? 'disabled' : ''} onchange="setApiMode(this.checked);render();">`;
-      html += `<label for="apiModeToggle">启用真实 AI 分析（DeepSeek）</label>`;
-      if (!apiKey) html += '<span class="api-status" style="color:#FF2442">（请先输入 API Key）</span>';
-      else if (useApi) html += '<span class="api-status" style="color:#2E7D32">（已启用，将调用 DeepSeek API）</span>';
-      else html += '<span class="api-status" style="color:#999">（关闭则使用演示模式）</span>';
-      html += '</div>';
-      html += '<div class="api-status" style="margin-top:4px;line-height:1.5">' + ic('bulb') + ' API Key 仅保存在浏览器本地，不会上传。获取 Key：<a href="https://platform.deepseek.com" target="_blank" style="color:var(--primary)">platform.deepseek.com</a></div>';
-      html += '</div>';
+      html += renderAnalyzeApiConfig();
 
       // 输入区域
       html += '<div class="analyze-section">';
@@ -1448,7 +1613,7 @@
         // 概览卡片
         html += '<div class="analyze-overview">';
         if (b.image) {
-          html += '<div class="analyze-cover"><img src="' + escapeHtml(b.image) + '" alt="封面" onerror="this.style.display=\'none\'" /></div>';
+          html += '<div class="analyze-cover"><img src="' + escapeHtml(resolveAnalyzeImage(b.image)) + '" alt="封面" onerror="this.onerror=null;this.parentElement.classList.add(\'no-image\')" /></div>';
         }
         html += '<div class="analyze-overview-info">';
         html += '<div class="analyze-overview-title">' + escapeHtml(a.title || b.title || '未知标题') + '</div>';
@@ -1459,7 +1624,12 @@
         html += '<div class="analyze-stat"><span class="analyze-stat-num">' + formatNum(b.comments || a.comments || 0) + '</span><span class="analyze-stat-label">评论</span></div>';
         html += '</div>';
         if (r.isDemo) {
-          html += '<div class="analyze-demo-tag">演示模式 · 配置API Key获取真实分析</div>';
+          html += '<div class="analyze-demo-tag" style="background:rgba(255,149,0,0.15);color:#E65100;font-weight:600">⚠️ 演示模式 · 这是固定模板，非 AI 分析。请勾选「启用真实 AI 分析」并配置 Key</div>';
+        } else {
+          const modeMap = { deepseek: 'DeepSeek 文本分析', zhipu: '智谱视觉分析', dual: '双模型分析（DeepSeek + 智谱）' };
+          const modeLabel = modeMap[r.analysisMode] || 'AI 分析';
+          const modelHint = r.zhipuModel ? ' · ' + r.zhipuModel : '';
+          html += '<div class="analyze-demo-tag" style="background:rgba(46,125,50,0.1);color:#2E7D32">' + ic('robot') + ' ' + modeLabel + modelHint + (r.visionUsed ? ' · 已识别画面' : '') + '</div>';
         }
         html += '</div>';
         html += '</div>';
@@ -1591,6 +1761,13 @@
       return html;
     }
 
+    function resolveAnalyzeImage(url) {
+      if (!url) return '';
+      if (url.startsWith('http') || url.startsWith('data:') || url.startsWith('blob:')) return url;
+      const base = API_BASE.replace(/\/api\/?$/, '');
+      return base + (url.startsWith('/') ? url : '/' + url);
+    }
+
     function formatNum(n) {
       if (n >= 10000) return (n / 10000).toFixed(1) + '万';
       if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
@@ -1605,6 +1782,17 @@
         render();
         return;
       }
+      const useApi = getApiMode();
+      const apiKey = useApi ? getApiKey() : '';
+      const zhipuApiKey = useApi ? getZhipuApiKey() : '';
+      if (useApi && !apiKey && !zhipuApiKey) {
+        analyzeError = '请至少配置 DeepSeek 或智谱 API Key';
+        render();
+        return;
+      }
+      if (!useApi) {
+        analyzeError = '';
+      }
       analyzeUrl = url;
       analyzeLoading = true;
       analyzeError = '';
@@ -1612,8 +1800,7 @@
       render();
 
       try {
-        const apiKey = getApiKey();
-        const data = await apiPost('/analyze/analyze', { url, apiKey });
+        const data = await apiPost('/analyze/analyze', { url, apiKey, zhipuApiKey, zhipuVisionModel: getZhipuVisionModel() });
         if (data.error) {
           analyzeError = data.error;
         } else {
@@ -1776,14 +1963,8 @@
     let aiSelectedCat = '';
     let aiResults = [];
     let aiError = '';
-
-    // API Key 管理（存储在 localStorage）
-    const API_KEY_STORAGE = 'rb_api_key';
-    const API_MODE_STORAGE = 'rb_api_mode';
-    const getApiKey = () => { try { return localStorage.getItem(API_KEY_STORAGE) || ''; } catch { return ''; } };
-    const setApiKey = (k) => { try { localStorage.setItem(API_KEY_STORAGE, k); } catch {} };
-    const getApiMode = () => { try { return localStorage.getItem(API_MODE_STORAGE) === 'true'; } catch { return false; } };
-    const setApiMode = (v) => { try { localStorage.setItem(API_MODE_STORAGE, v.toString()); } catch {} };
+    let aiLastGenKeyword = '';
+    let aiLastGenCat = '';
 
     // 演示模式数据（作为 API 不可用时的降级方案）
     const aiSuggestions = [
@@ -1795,39 +1976,62 @@
       { title: '新手养宠必备清单与避坑', description: '从宠物用品选购到日常护理，整理新手养宠最容易忽略的准备工作和常见误区。', keywords: ['新手养宠', '养宠清单', '避坑指南', '宠物用品'], category: 'pet', score: 85 },
     ];
 
-    const catTemplates = { beauty: ['平价替代', '测评红黑榜', '妆容教程', '护肤流程', '好物分享'], fashion: ['穿搭公式', '一衣多穿', '胶囊衣橱', '身材搭配', '季节穿搭'], food: ['懒人食谱', '探店打卡', '低卡美食', '一人食', '甜品教程'], travel: ['穷游攻略', '拍照打卡', 'citywalk', '本地人推荐', '小众景点'], fitness: ['居家运动', '减脂食谱', '跟练教程', '健身打卡', '体态矫正'], home: ['租房改造', '收纳整理', '平价好物', 'roomtour', '软装搭配'], tech: ['开箱测评', '隐藏功能', '使用技巧', '对比评测', '好物推荐'], pet: ['萌宠日常', '新手攻略', '宠物用品', '护理教程', '行为训练'], other: ['入门指南', '经验分享', '避坑指南', '好物推荐', '实用教程'] };
+    const CN_TO_CAT_ID = { 美妆: 'beauty', 穿搭: 'fashion', 美食: 'food', 旅行: 'travel', 健身: 'fitness', 家居: 'home', 数码: 'tech', 宠物: 'pet', 其他: 'other' };
 
-    // 调用 DeepSeek API 生成选题
+    function mapAiCategory(itemCategory, fallbackCategory) {
+      const catName = (itemCategory || '').trim();
+      const byCn = CN_TO_CAT_ID[catName];
+      if (byCn) return byCn;
+      const byId = categories.find(c => c.id === catName && c.id !== 'all');
+      if (byId) return byId.id;
+      const byName = categories.find(c => c.name === catName && c.id !== 'all');
+      if (byName) return byName.id;
+      const slug = catName.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]/g, '').slice(0, 20);
+      return fallbackCategory || ensureCategory(slug, catName);
+    }
+
+    // 调用 DeepSeek API 生成选题（xhs-topic-strategist 风格）
     async function callDeepSeekAPI(keyword, category) {
       const apiKey = getApiKey();
       if (!apiKey) throw new Error('请先配置 API Key');
 
+      const { buildTopicSystemPrompt, buildTopicUserPrompt, parseTopicApiResponse } = await xhsTopicPromise;
+      if (!buildTopicSystemPrompt) throw new Error('选题模块加载中，请稍后重试');
       const catName = category ? categories.find(c => c.id === category)?.name : '';
-      const catFilter = category ? `，内容分类为「${catName}」` : '（请根据关键词自动判断最合适的内容分类，如果现有分类都不匹配，可以创建新的中文分类名）';
       const validCats = categories.filter(c => c.id !== 'all').map(c => c.name).join('、');
+      const [systemPrompt, userPrompt] = await Promise.all([
+        buildTopicSystemPrompt(validCats),
+        buildTopicUserPrompt(keyword, catName),
+      ]);
 
-      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            {
-              role: 'system',
-              content: `你是小红书选题专家。根据用户输入的关键词和分类，生成3-5个爆款选题建议。每个选题包含：标题（吸引眼球）、描述（50字左右）、关键词（3-5个）、category（用中文，优先从现有分类选：${validCats}；如果都不匹配，根据内容创建一个新的2-4字中文分类名）、潜力评分（score，1-100）。请以JSON数组格式返回，格式为：[{"title":"...","description":"...","keywords":["...","..."],"category":"...","score":95}]`,
-            },
-            {
-              role: 'user',
-              content: `请为「${keyword}」生成小红书选题建议${catFilter}。`,
-            },
-          ],
-          temperature: 0.8,
-          max_tokens: 2000,
-        }),
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 45000);
+
+      let response;
+      try {
+        response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.8,
+            max_tokens: 1200,
+          }),
+        });
+      } catch (e) {
+        if (e.name === 'AbortError') throw new Error('DeepSeek 响应超时（45秒），请稍后重试');
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -1836,48 +2040,50 @@
 
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content || '';
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return parsed.map((item, i) => {
-          let catName = (item.category || '').trim();
-          let cat = catName.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]/g, '').slice(0, 20);
-          // 先尝试匹配现有分类
-          if (!categories.find(c => c.id === cat && c.id !== 'all')) {
-            // 如果用户选了分类就用用户的，否则动态创建新分类
-            cat = category || ensureCategory(cat, catName);
-          }
-          return {
-            title: item.title || '',
-            description: item.description || '',
-            keywords: item.keywords || [],
-            category: cat,
-            score: item.score || 80,
-          };
-        });
-      }
-      throw new Error('AI 返回格式异常，请重试');
+      const parsed = parseTopicApiResponse(content, category);
+      return parsed.map((item) => ({
+        title: item.title,
+        description: item.description,
+        keywords: item.keywords,
+        category: mapAiCategory(item.category, category),
+        score: item.score,
+      }));
     }
 
-    // 演示模式生成（降级方案）
-    function generateDemo(keyword, category) {
-      let results = aiSuggestions;
-      if (keyword.trim()) results = results.filter(s => s.title.includes(keyword) || s.keywords.some(k => k.includes(keyword)) || s.description.includes(keyword));
-      if (category) results = results.filter(s => s.category === category);
-      if (results.length === 0 && keyword.trim()) {
-        const mc = category || 'other';
-        const tpls = catTemplates[mc] || catTemplates.other;
-        const cn = categories.find(c => c.id === mc)?.name || '';
-        results = tpls.slice(0, 3).map((tpl, i) => ({
-          title: keyword + '｜' + tpl, description: '围绕「' + keyword + '」这个主题，从' + tpl + '角度切入，结合真实体验和个人观点，制作一期有参考价值的' + cn + '类内容。',
-          keywords: [keyword, tpl], category: mc, score: Math.floor(80 - i * 5)
-        }));
-      }
-      return results.slice(0, 6);
+    // 演示模式生成（小红书风格示例，非模板拼接）
+    async function generateDemo(keyword, category) {
+      const mod = await xhsTopicPromise;
+      if (mod?.buildDemoTopics) return mod.buildDemoTopics(keyword, category, aiSuggestions);
+      return aiSuggestions.slice(0, 5);
+    }
+
+    function aiInputsChanged() {
+      return aiKeyword !== aiLastGenKeyword || aiSelectedCat !== aiLastGenCat;
+    }
+    function canClickAIGenerate() {
+      if (aiStage === 'generating') return false;
+      if (!aiKeyword.trim() && !aiSelectedCat) return false;
+      if (aiStage === 'result') return aiInputsChanged();
+      return true;
+    }
+    function updateAIGenerateBtn() {
+      const btn = document.getElementById('aiGenerateBtn');
+      if (btn) btn.disabled = !canClickAIGenerate();
+    }
+    function handleAIKeywordInput(el) {
+      aiKeyword = el.value;
+      updateAIGenerateBtn();
+    }
+    function handleAICategorySelect(catId) {
+      if (aiStage === 'generating') return;
+      aiSelectedCat = aiSelectedCat === catId ? '' : catId;
+      render();
     }
 
     function handleGen() {
-      if (!aiKeyword.trim() && !aiSelectedCat) return;
+      if (!canClickAIGenerate()) return;
+      aiLastGenKeyword = aiKeyword;
+      aiLastGenCat = aiSelectedCat;
       aiStage = 'generating';
       aiError = '';
       render();
@@ -1885,7 +2091,7 @@
       const useApi = getApiMode() && getApiKey();
       const promise = useApi
         ? callDeepSeekAPI(aiKeyword, aiSelectedCat)
-        : new Promise(resolve => setTimeout(() => resolve(generateDemo(aiKeyword, aiSelectedCat)), 2000));
+        : generateDemo(aiKeyword, aiSelectedCat);
 
       promise.then(results => {
         aiResults = results.slice(0, 6).map((r, i) => ({ ...r, id: '_ai' + i }));
@@ -1893,15 +2099,17 @@
         render();
       }).catch(err => {
         aiError = err.message || '生成失败，请重试';
-        // 如果 API 失败，降级到演示模式
         if (useApi) {
-          aiResults = generateDemo(aiKeyword, aiSelectedCat).map((r, i) => ({ ...r, id: '_ai' + i }));
-          aiStage = 'result';
-          aiError = 'Real API 调用失败（' + aiError + '），已自动降级为演示模式。请检查 API Key 是否正确。';
+          generateDemo(aiKeyword, aiSelectedCat).then(fallback => {
+            aiResults = fallback.map((r, i) => ({ ...r, id: '_ai' + i }));
+            aiStage = 'result';
+            aiError = 'Real API 调用失败（' + aiError + '），已自动降级为演示模式。请检查 API Key 是否正确。';
+            render();
+          });
         } else {
           aiStage = 'input';
+          render();
         }
-        render();
       });
     }
 
@@ -1911,17 +2119,21 @@
       aiSelectedCat = '';
       aiResults = [];
       aiError = '';
+      aiLastGenKeyword = '';
+      aiLastGenCat = '';
       render();
     }
 
     function handleRefresh() {
+      aiLastGenKeyword = aiKeyword;
+      aiLastGenCat = aiSelectedCat;
       aiStage = 'generating';
       aiError = '';
       render();
       const useApi = getApiMode() && getApiKey();
       const promise = useApi
         ? callDeepSeekAPI(aiKeyword, aiSelectedCat)
-        : new Promise(resolve => setTimeout(() => resolve(generateDemo(aiKeyword, aiSelectedCat)), 2000));
+        : generateDemo(aiKeyword, aiSelectedCat);
       promise.then(results => {
         aiResults = results.slice(0, 6).map((r, i) => ({ ...r, id: '_ai' + i }));
         aiStage = 'result';
@@ -1929,13 +2141,16 @@
       }).catch(err => {
         aiError = err.message || '生成失败，请重试';
         if (useApi) {
-          aiResults = generateDemo(aiKeyword, aiSelectedCat).map((r, i) => ({ ...r, id: '_ai' + i }));
-          aiStage = 'result';
-          aiError = 'Real API 调用失败（' + aiError + '），已自动降级为演示模式。请检查 API Key 是否正确。';
+          generateDemo(aiKeyword, aiSelectedCat).then(fallback => {
+            aiResults = fallback.map((r, i) => ({ ...r, id: '_ai' + i }));
+            aiStage = 'result';
+            aiError = 'Real API 调用失败（' + aiError + '），已自动降级为演示模式。请检查 API Key 是否正确。';
+            render();
+          });
         } else {
           aiStage = 'input';
+          render();
         }
-        render();
       });
     }
 
@@ -1960,20 +2175,20 @@
       else if (useApi) html += '<span class="api-status" style="color:#2E7D32">（已启用，将调用 DeepSeek API）</span>';
       else html += '<span class="api-status" style="color:#999">（关闭则使用演示模式）</span>';
       html += '</div>';
-      html += '<div class="api-status" style="margin-top:4px;line-height:1.5">' + ic('bulb') + ' API Key 仅保存在浏览器本地，不会上传。获取 Key：<a href="https://platform.deepseek.com" target="_blank" style="color:var(--primary)">platform.deepseek.com</a></div>';
+      html += '<div class="api-status" style="margin-top:4px;line-height:1.5">' + ic('bulb') + ' Key 保存在浏览器本地；生成时直接调用 DeepSeek，不会存入服务器。获取 Key：<a href="https://platform.deepseek.com" target="_blank" style="color:var(--primary)">platform.deepseek.com</a></div>';
       html += '</div>';
 
       // Input card
       html += '<div class="ai-card">';
       html += `<div class="ai-label">${useApi ? ic('robot') + ' 输入创作方向（AI 将基于真实大模型生成）' : ic('document') + ' 输入创作方向或关键词（演示模式）'}</div>`;
-      html += `<input class="ai-input" placeholder="例如：早八妆、通勤穿搭、穷游..." value="${aiKeyword}" oninput="aiKeyword=this.value" ${aiStage !== 'input' ? 'disabled' : ''}>`;
+      html += `<input class="ai-input" id="aiKeywordInput" placeholder="例如：早八妆、通勤穿搭、穷游..." value="${aiKeyword}" oninput="handleAIKeywordInput(this)" ${aiStage === 'generating' ? 'disabled' : ''}>`;
       html += '<div class="ai-label" style="margin-top:16px">选择内容分类（可选）</div>';
       html += '<div class="category-grid">';
       categories.filter(c => c.id !== 'all').slice(0, 8).forEach(cat => {
-        html += `<button class="cat-chip${aiSelectedCat === cat.id ? ' active' : ''}" onclick="if(aiStage!=='input')return;aiSelectedCat=aiSelectedCat==='${cat.id}'?'':'${cat.id}';render();" ${aiStage !== 'input' ? 'disabled' : ''}>${cat.name}</button>`;
+        html += `<button class="cat-chip${aiSelectedCat === cat.id ? ' active' : ''}" onclick="handleAICategorySelect('${cat.id}')" ${aiStage === 'generating' ? 'disabled' : ''}>${cat.name}</button>`;
       });
       html += '</div>';
-      html += `<button class="generate-btn" onclick="handleGen()" ${aiStage !== 'input' ? 'disabled' : ''}>${ic('sparkles')} ${useApi ? 'AI 生成选题' : '生成选题建议'}</button>`;
+      html += `<button class="generate-btn" id="aiGenerateBtn" onclick="handleGen()" ${!canClickAIGenerate() ? 'disabled' : ''}>${ic('sparkles')} ${useApi ? 'AI 生成选题' : '生成选题建议'}</button>`;
       html += '</div>';
 
       // Error
@@ -1985,7 +2200,7 @@
       if (aiStage === 'generating') {
         html += '<div class="generating-box"><div class="pulse-circle"><span>' + ic('sparkles', 36) + '</span></div>';
         html += `<div class="generating-title">${useApi ? 'AI 正在分析创作趋势...' : '正在生成选题建议...'}</div>`;
-        html += `<div class="generating-hint">${useApi ? '正在调用 DeepSeek 大模型，结合热门话题生成爆款选题' : '结合热门话题与你的关键词生成爆款选题'}</div></div>`;
+        html += `<div class="generating-hint">${useApi ? '正在调用 DeepSeek，通常 10–30 秒；超时将自动提示' : '结合热门话题与你的关键词生成爆款选题'}</div></div>`;
       }
 
       // Results
@@ -2032,7 +2247,7 @@
 
       // Title
       html += `<div class="editor-field"><div class="editor-label">${ic('penLine')} 标题 <span class="count${title.length > 20 ? ' warn' : ''}">${title.length}/20</span></div>`;
-      html += `<input class="editor-input" id="editorTitle" value="${title.replace(/"/g, '&quot;')}" oninput="editorTopic.title=this.value;var c=this.parentElement.querySelector('.count');c.textContent=this.value.length+'/20';c.className='count'+(this.value.length>20?' warn':'')" placeholder="输入标题（建议20字以内）"></div>`;
+      html += `<input class="editor-input" id="editorTitle" value="${title.replace(/"/g, '&quot;')}" oninput="editorTopic.title=this.value;updateEditorTitleCount(this)" placeholder="输入标题（建议20字以内）"></div>`;
 
       // Content body
       const body = (t.body || t.description || '');
@@ -2163,14 +2378,38 @@
     }
 
     // ============== DetailScreen ==============
-    async function handleDetailFav(id, isFav) {
-      await toggleFav(id);
-      showToast(isFav ? '已取消收藏' : '已收藏');
+    let detailActionBusy = false;
+    async function handleDetailFav(id, shouldFav) {
+      if (detailActionBusy) return;
+      detailActionBusy = true;
+      render();
+      try {
+        await setFavState(id, shouldFav);
+        showToast(shouldFav ? '已收藏' : '已取消收藏');
+      } catch (e) {
+        render();
+        showToast(e.message || '操作失败，请检查网络', 'error');
+      } finally {
+        detailActionBusy = false;
+        render();
+      }
     }
-    async function handleDetailAdopt(id, adopted) {
-      await toggleAdopted(id);
-      showToast(adopted ? '已取消采纳' : ic('check') + ' 已采纳！该选题已加入你的创作计划');
+    async function handleDetailAdopt(id, shouldAdopt) {
+      if (detailActionBusy) return;
+      detailActionBusy = true;
+      render();
+      try {
+        await setAdoptedState(id, shouldAdopt);
+        showToast(shouldAdopt ? '已采纳！该选题已加入你的创作计划' : '已取消采纳');
+      } catch (e) {
+        render();
+        showToast(e.message || '操作失败，请检查网络', 'error');
+      } finally {
+        detailActionBusy = false;
+        render();
+      }
     }
+
     function renderDetail() {
       if (!detailTopic) return renderHome();
       const t = detailTopic;
@@ -2203,26 +2442,24 @@
       if (dcr.sensitive.length > 0) html += `<div style="margin-bottom:6px"><span style="font-size:12px;color:#F57F17;font-weight:600">${ic('bolt')} 敏感词：</span>${dcr.sensitive.map(w => `<span class="compliance-word-tag" style="background:#FFF9C4;color:#F57F17">${w}</span>`).join('')}</div>`;
       if (dcr.lowQuality.length > 0) html += `<div style="margin-bottom:6px"><span style="font-size:12px;color:#3949AB;font-weight:600">${ic('bulb')} 低质词：</span>${dcr.lowQuality.map(w => `<span class="compliance-word-tag" style="background:#C5CAE9;color:#3949AB">${w}</span>`).join('')}</div>`;
       html += '</div></div>';
-      // 创作建议
+      // 创作建议（xhs-topic-strategist skill）
+      const creationTips = getCreationAdvice(t);
       html += '<div class="detail-section"><div class="detail-section-title">创作建议</div><div class="tip-card">';
-      html += '<div class="tip-item"><div class="tip-dot"></div><span class="tip-text">建议结合个人真实体验，增加内容的可信度和亲和力</span></div>';
-      html += '<div class="tip-item"><div class="tip-dot"></div><span class="tip-text">封面图建议使用高清实拍图，第一张图决定点击率</span></div>';
-      html += '<div class="tip-item"><div class="tip-dot"></div><span class="tip-text">标题可加入数字或疑问句，更容易吸引用户点击</span></div>';
-      html += '<div class="tip-item"><div class="tip-dot"></div><span class="tip-text">发布最佳时间：工作日 12:00-14:00 或 18:00-22:00</span></div>';
+      creationTips.forEach(tip => {
+        html += '<div class="tip-item"><div class="tip-dot"></div><div class="tip-item-body">';
+        html += `<div class="tip-label">${tip.label}</div><span class="tip-text">${escapeHtml(tip.text)}</span></div></div>`;
+      });
       html += '</div></div></div></div>';
 
       html += '<div class="detail-bottom-bar">';
-      html += `<button class="bottom-action${isFav ? ' active' : ''}" onclick="handleDetailFav('${t.id}', ${isFav})"><span class="icon">${isFav ? ic('heartFilled') : ic('heart')}</span>${isFav ? '已收藏' : '收藏'}</button>`;
-      html += `<button class="bottom-action" onclick="shareTopic('${(t.title || '').replace(/'/g, "\\'")}', '${(t.description || '').replace(/'/g, "\\'")}')"><span class="icon">${ic('share')}</span>分享</button>`;
-      html += `<button class="use-btn${adopted ? ' adopted' : ''}" onclick="handleDetailAdopt('${t.id}', ${adopted})">${adopted ? ic('check') + ' 已采纳' : ic('check') + ' 采纳这个选题'}</button>`;
+      html += '<button class="bottom-action' + (isFav ? ' active' : '') + '"' + (detailActionBusy ? ' disabled' : '') + ' onclick="handleDetailFav(\'' + t.id + '\', ' + !isFav + ')"><span class="icon">' + (isFav ? ic('heartFilled') : ic('heart')) + '</span>' + (isFav ? '已收藏' : '收藏') + '</button>';
+      html += '<button class="bottom-action" onclick="shareTopic(\'' + escSingleQuote(t.title || '') + '\', \'' + escSingleQuote(t.description || '') + '\')"><span class="icon">' + ic('share') + '</span>分享</button>';
+      html += '<button class="use-btn' + (adopted ? ' adopted' : '') + '"' + (detailActionBusy ? ' disabled' : '') + ' onclick="handleDetailAdopt(\'' + t.id + '\', ' + !adopted + ')">' + (detailActionBusy ? '处理中...' : (adopted ? ic('check') + ' 已采纳' : ic('check') + ' 采纳这个选题')) + '</button>';
       html += '</div></div>';
       return html;
     }
 
     // ============== Main Render ==============
-    function escapeHtml(str) {
-      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
     let settingsMenuOpen = false;
     function toggleSettingsMenu(e) {
       e && e.stopPropagation();

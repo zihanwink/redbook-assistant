@@ -1,3 +1,4 @@
+console.log('[redbook] booting...');
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -44,7 +45,15 @@ app.get('/health', (req, res) => res.json({ ok: true, time: new Date().toISOStri
 async function startServer() {
   try {
     await initDatabase();
-    
+
+    // 检测 ffmpeg 可用性（日志输出，不影响启动）
+    try {
+      const { checkFfmpeg, ensureFfmpegPaths } = await import('./utils/videoProcessor.js');
+      await ensureFfmpegPaths();
+      const hasFfmpeg = checkFfmpeg();
+      console.log('ffmpeg 可用:', hasFfmpeg, hasFfmpeg ? '✓ 视频关键帧提取已启用' : '（视频分析将仅使用文本模式）');
+    } catch {}
+
     // Production: listen on 0.0.0.0
     const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
     const server = app.listen(PORT, HOST, () => {

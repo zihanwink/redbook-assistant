@@ -726,17 +726,36 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .tip-item:last-child { margin-bottom: 0; }
+
+.tip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FFB800;
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+.tip-item-body { flex: 1; min-width: 0; }
+
+.tip-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #B8860B;
+  margin-bottom: 3px;
+}
 
 .tip-item svg { width: 16px; height: 16px; color: #FFB800; flex-shrink: 0; margin-top: 2px; }
 
 .tip-text {
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
+  display: block;
 }
 
 /* Bottom Bar */

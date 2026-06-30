@@ -6,7 +6,7 @@ let db = null;
 export async function connectMongo(uri) {
   if (client) return db;
   
-  client = new MongoClient(uri);
+  client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
   await client.connect();
   db = client.db('redbook_assistant');
   

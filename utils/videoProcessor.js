@@ -1,33 +1,60 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { execSync, exec } from 'child_process';
+import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TMP_DIR = path.join(__dirname, '..', 'tmp');
 
+// Vercel serverless 只能写 /tmp，本地用项目 tmp 目录
+const TMP_DIR = process.env.VERCEL ? '/tmp' : path.join(__dirname, '..', 'tmp');
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
-const FFMPEG_PATH = process.env.FFMPEG_PATH || 'D:\\ffmpeg\\bin\\ffmpeg.exe';
-const FFPROBE_PATH = process.env.FFPROBE_PATH || 'D:\\ffmpeg\\bin\\ffprobe.exe';
+// ===== ffmpeg 路径自动检测（懒加载，避免阻塞 server 启动）=====
+let FFMPEG_PATH = process.env.FFMPEG_PATH || '';
+let FFPROBE_PATH = process.env.FFPROBE_PATH || '';
+let ffmpegPathsPromise = null;
+
+async function ensureFfmpegPaths() {
+  if (ffmpegPathsPromise) return ffmpegPathsPromise;
+  ffmpegPathsPromise = (async () => {
+    try {
+      const ffmpegInstaller = await import('@ffmpeg-installer/ffmpeg');
+      const fPath = ffmpegInstaller?.default?.path || ffmpegInstaller?.path;
+      if (fPath) FFMPEG_PATH = fPath;
+    } catch {}
+    try {
+      const ffprobeInstaller = await import('@ffprobe-installer/ffprobe');
+      if (ffprobeInstaller?.path) FFPROBE_PATH = ffprobeInstaller.path;
+    } catch {}
+    FFMPEG_PATH = process.env.FFMPEG_PATH || FFMPEG_PATH || '';
+    FFPROBE_PATH = process.env.FFPROBE_PATH || FFPROBE_PATH || '';
+  })();
+  return ffmpegPathsPromise;
+}
 
 function checkFfmpeg() {
-  try {
-    execSync(`"${FFMPEG_PATH}" -version`, { stdio: 'pipe' });
-    return true;
-  } catch {
-    // 也尝试系统 PATH 中的 ffmpeg
+  // 依次检测：npm 安装版 → 环境变量/硬编码路径 → 系统 PATH
+  const candidates = [FFMPEG_PATH, 'ffmpeg'].filter(Boolean);
+  for (const cmd of candidates) {
     try {
-      execSync('ffmpeg -version', { stdio: 'pipe' });
+      execSync(`${cmd.includes(' ') || cmd.includes('/') ? `"${cmd}"` : cmd} -version`, { stdio: 'pipe', timeout: 5000 });
+      console.log(`✓ ffmpeg 可用: ${cmd}`);
       return true;
-    } catch {
-      return false;
-    }
+    } catch { continue; }
   }
+  console.log('⚠️ ffmpeg 不可用（视频分析将使用纯文本模式）');
+  return false;
+}
+
+function getFfmpegCmd() {
+  // 返回当前可用的 ffmpeg 命令
+  if (FFMPEG_PATH) return FFMPEG_PATH;
+  return 'ffmpeg';
 }
 
 function runFfmpeg(args, timeout = 120000) {
-  const cmd = `"${FFMPEG_PATH}" ${args}`;
+  const exe = getFfmpegCmd();
+  const cmd = exe.includes(' ') || exe.includes('/') ? `"${exe}" ${args}` : `${exe} ${args}`;
   try {
     execSync(cmd, { timeout, stdio: 'pipe' });
     return true;
@@ -43,8 +70,8 @@ function runFfmpeg(args, timeout = 120000) {
 }
 
 function runFfmpegCapture(args, timeout = 10000, useFfprobe = false) {
-  const exe = useFfprobe ? `"${FFPROBE_PATH}"` : `"${FFMPEG_PATH}"`;
-  const cmd = `${exe} ${args}`;
+  const exe = useFfprobe ? FFPROBE_PATH : getFfmpegCmd();
+  const cmd = exe.includes(' ') || exe.includes('/') ? `"${exe}" ${args}` : `${exe} ${args}`;
   try {
     return execSync(cmd, { timeout, stdio: 'pipe' }).toString().trim();
   } catch {
@@ -202,6 +229,7 @@ function imageToBase64(imagePath) {
 
 export {
   checkFfmpeg,
+  ensureFfmpegPaths,
   extractVideoUrl,
   downloadVideo,
   extractAudio,
