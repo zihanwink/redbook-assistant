@@ -40,7 +40,10 @@
 <body>
   <div id="app"></div>
   <script>
-    const API_BASE = '/api';
+    const PROD_API_BASE = 'https://web-production-fb020.up.railway.app/api';
+    const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? '/api'
+      : PROD_API_BASE;
     let adminKey = localStorage.getItem('rb_admin_key') || '';
     let users = [];
     let stats = {};
