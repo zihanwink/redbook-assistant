@@ -134,6 +134,34 @@ const mongoDb = {
     });
     return true;
   },
+
+  async getAllUsers() {
+    const docs = await db.collection('users').find({}).toArray();
+    return docs.map(doc => {
+      const { _id, password_hash, ...rest } = doc;
+      return { ...rest, id: _id.toString() };
+    });
+  },
+
+  async deleteUser(id) {
+    const oid = toObjectId(id);
+    if (!oid) return;
+    const uid = id.toString();
+    await db.collection('users').deleteOne({ _id: oid });
+    await db.collection('favorites').deleteMany({ user_id: uid });
+    await db.collection('plans').deleteMany({ user_id: uid });
+    await db.collection('topics').deleteMany({ user_id: uid });
+  },
+
+  async getStats() {
+    const [users, topics, favorites, plans] = await Promise.all([
+      db.collection('users').countDocuments(),
+      db.collection('topics').countDocuments(),
+      db.collection('favorites').countDocuments(),
+      db.collection('plans').countDocuments(),
+    ]);
+    return { users, topics, favorites, plans };
+  },
 };
 
 export default mongoDb;

@@ -50,14 +50,24 @@
 
     async function apiGet(path) {
       const res = await fetch(API_BASE + path, { headers: { 'x-admin-key': adminKey } });
-      if (!res.ok) throw new Error((await res.json()).error || '请求失败');
-      return res.json();
+      const text = await res.text();
+      let data;
+      try { data = text ? JSON.parse(text) : {}; } catch {
+        throw new Error(res.ok ? '响应格式错误' : ('请求失败 (' + res.status + ')，请确认后端已部署最新版本'));
+      }
+      if (!res.ok) throw new Error(data.error || '请求失败');
+      return data;
     }
 
     async function apiDelete(path) {
       const res = await fetch(API_BASE + path, { method: 'DELETE', headers: { 'x-admin-key': adminKey } });
-      if (!res.ok) throw new Error((await res.json()).error || '请求失败');
-      return res.json();
+      const text = await res.text();
+      let data;
+      try { data = text ? JSON.parse(text) : {}; } catch {
+        throw new Error(res.ok ? '响应格式错误' : ('请求失败 (' + res.status + ')，请确认后端已部署最新版本'));
+      }
+      if (!res.ok) throw new Error(data.error || '请求失败');
+      return data;
     }
 
     async function loadData() {
